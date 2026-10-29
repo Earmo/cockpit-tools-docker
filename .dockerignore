@@ -1,0 +1,7 @@
+*
+!Dockerfile
+!startapp-vnc.sh
+!vnc-auth-init.sh
+!.runtime/
+.runtime/*
+!.runtime/package.deb

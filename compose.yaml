@@ -1,0 +1,42 @@
+x-cockpit-deploy:
+  data_dir: ${DATA_DIR:-}
+  download_proxy: ${DOWNLOAD_PROXY:-${APP_PROXY:-}}
+  download_prefix: ${DOWNLOAD_PREFIX:-}
+  dollar_literal: "$$"
+
+services:
+  cockpit-vnc:
+    image: cockpit-tools-vnc:pending
+    container_name: ${CONTAINER_NAME:-cockpit-tools-vnc}
+    build:
+      context: .
+      args:
+        HTTP_PROXY: ${BUILD_PROXY:-${APP_PROXY:-}}
+        HTTPS_PROXY: ${BUILD_PROXY:-${APP_PROXY:-}}
+        UBUNTU_MIRROR: ${UBUNTU_MIRROR:-http://mirrors.aliyun.com/ubuntu}
+    environment:
+      USER_ID: ${USER_ID:-1000}
+      GROUP_ID: ${GROUP_ID:-1000}
+      TZ: ${TZ:-Asia/Singapore}
+      DISPLAY_WIDTH: "1440"
+      DISPLAY_HEIGHT: "900"
+      SECURE_CONNECTION: "1"
+      WEB_AUTHENTICATION: "1"
+      WEB_AUDIO: "0"
+      COCKPIT_WEB_USERNAME: ${VNC_USERNAME:-cockpit}
+      COCKPIT_WEB_PASSWORD: ${VNC_PASSWORD:?请在 .env 中设置 VNC_PASSWORD}
+      HTTP_PROXY: ${APP_PROXY:-}
+      HTTPS_PROXY: ${APP_PROXY:-}
+      NO_PROXY: localhost,127.0.0.1,::1
+    volumes:
+      - cockpit_config:/config
+    ports:
+      - "${VNC_WEB_PORT:-13001}:5800"
+      - "${API_PORT:-42991}:42991"
+    shm_size: 1gb
+    mem_limit: 2g
+    cpus: 2
+    restart: unless-stopped
+
+volumes:
+  cockpit_config:

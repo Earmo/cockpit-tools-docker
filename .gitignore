@@ -1,0 +1,9 @@
+.env
+.runtime/
+.cache/
+data/
+__pycache__/
+cockpit-tools.deb
+*.png
+.start.lock
+cockpit-tools.deb.*
