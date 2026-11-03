@@ -302,6 +302,34 @@ class ConfigTests(unittest.TestCase):
             generate.assert_not_called()
             self.assertEqual((root / ".env").read_text(), "custom configuration")
 
+    def test_template_password_is_preserved(self):
+        template = "VNC_USERNAME=custom\nVNC_PASSWORD='custom$# password'"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".env.example").write_text(template, encoding="utf-8")
+            with patch.object(deploy.secrets, "token_hex") as generate, contextlib.redirect_stdout(io.StringIO()) as output:
+                deploy.ensure_env(root)
+            generate.assert_not_called()
+            self.assertEqual((root / ".env").read_text(encoding="utf-8"), template)
+            self.assertNotIn("custom$# password", output.getvalue())
+
+    def test_empty_template_password_formats(self):
+        for template in ["VNC_PASSWORD=", "VNC_PASSWORD=\r\n", "VNC_PASSWORD =   # generate\n", "VNC_PASSWORD=''\n", 'VNC_PASSWORD=""\n', "VNC_USERNAME=cockpit\n"]:
+            with self.subTest(template=template), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                (root / ".env.example").write_bytes(template.encode())
+                with patch.object(deploy.secrets, "token_hex", return_value="a" * 48), contextlib.redirect_stdout(io.StringIO()):
+                    deploy.ensure_env(root)
+                self.assertIn('VNC_PASSWORD="' + "a" * 48 + '"', (root / ".env").read_text())
+
+    def test_duplicate_template_password_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".env.example").write_text("VNC_PASSWORD=first-password\nVNC_PASSWORD=second-password\n")
+            with self.assertRaises(deploy.DeployError):
+                deploy.ensure_env(root)
+            self.assertFalse((root / ".env").exists())
+
     def test_capture_does_not_leak_invalid_env_value(self):
         with patch.object(deploy.subprocess, "run", return_value=subprocess.CompletedProcess([], 1, "", "PRIVATE-PASSWORD")):
             with self.assertRaises(deploy.DeployError) as raised:

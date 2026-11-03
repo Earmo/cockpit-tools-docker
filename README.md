@@ -29,6 +29,8 @@ cd cockpit-tools-docker
 bash start.sh
 ```
 
+请使用 `bash start.sh`，不要使用 `. start.sh` 或 `source start.sh`。脚本检测到被 source 时只提示正确用法，不执行部署或改变当前终端。
+
 首次启动会生成 `.env`，其中包含默认用户名 `cockpit` 和随机密码。部署完成后，访问 `https://<服务器IP>:13001`，使用 `.env` 中的账号密码登录。浏览器可能提示自签名证书。
 
 默认自动创建数据存储卷。首次构建需要下载应用和系统依赖，耗时取决于网络情况。
@@ -59,7 +61,7 @@ bash start.sh --proxy http://192.168.1.10:7890
 
 ## 账号与配置
 
-首次运行自动生成 `.env`，默认账号为 `cockpit`，随机密码保存在该文件中，不输出到终端。已有 `.env` 不会覆盖，账号密码以 `.env` 中的配置为准。
+首次运行从 `.env.example` 创建 `.env`，默认账号为 `cockpit`。模板中已填写的密码会保留；留空时生成随机密码，不输出到终端。已有 `.env` 不会覆盖，账号密码以 `.env` 中的配置为准。修改密码请编辑 `.env` 的 `VNC_PASSWORD`，然后重新执行 `bash start.sh`。
 
 也可复制 `.env.example` 为 `.env`，填写密码后再启动：
 
@@ -111,6 +113,8 @@ UBUNTU_MIRROR=http://mirrors.aliyun.com/ubuntu
 
 `DOWNLOAD_PROXY` 和 `BUILD_PROXY` 留空时继承 `APP_PROXY`。`--proxy` 同时覆盖本次下载、构建和应用代理，不修改 Docker 守护进程配置；基础镜像拉取仍使用 Docker 自身的网络设置。
 
+出现“无法连接下载服务”时，可在 `.env` 中设置 `DOWNLOAD_PROXY=http://<可访问的代理IP>:<端口>` 后重试。该设置只影响版本查询和安装包下载；需要同时代理构建和应用流量时使用 `APP_PROXY` 或 `--proxy`。容器内访问宿主机代理时不能使用 `127.0.0.1`。
+
 `DOWNLOAD_PREFIX` 可配置安装包下载加速前缀，例如 `https://gh-proxy.com/`；版本元数据仍来自官方 API，安装包仍按官方 SHA256 校验。GitHub API 限流时可在执行前设置 `GITHUB_TOKEN`，该令牌不发送给安装包镜像站。
 
 `UBUNTU_MIRROR` 用于替换基础镜像的 Ubuntu archive/security 源，默认使用阿里云；ARM64 镜像原有的 Ubuntu ports 源保持不变。
@@ -126,6 +130,18 @@ API_PORT=42992
 
 ## 更新
 
+### 应用内更新
+
+在 Cockpit Tools 的官方更新弹框中点击“立即更新”。容器提供 system D-Bus、PackageKit 和 polkit 服务，以及绑定到应用进程的 `pkttyagent` 认证代理；不调用自定义安装命令，也不配置免密码提权。
+
+`Cockpit Tools - Update Authorization` 授权终端平时最小化，需要授权时自动置前。输入网页登录密码即可，输入时不显示字符；认证结束后自动最小化。请勿关闭此窗口；关闭后需要重启应用才能重新注册认证代理。
+
+容器启动时使用 `VNC_PASSWORD` 设置容器内 root 的认证密码，root 的登录 Shell 仍为 `nologin`，不开放 SSH 或其他 root 登录服务。此密码具备容器内管理员权限，请仅向可信用户提供桌面访问权限；不会修改宿主机账号。
+
+应用内更新修改当前容器的可写层，普通重启会保留。删除或重建容器后，应用版本由新镜像决定；`/config` 中的数据仍由原挂载保存。
+
+### 重新构建部署
+
 在原部署目录重新执行即可查询并部署最新稳定版：
 
 ```sh
@@ -136,7 +152,7 @@ bash start.sh
 
 ## 项目文件
 
-部署所需文件：`start.sh`、`deploy.py`、`Dockerfile`、`compose.yaml`、`.env.example`、`.dockerignore`、`startapp-vnc.sh`、`vnc-auth-init.sh`。首次运行自动准备安装包和运行时文件。
+部署所需文件：`start.sh`、`deploy.py`、`Dockerfile`、`compose.yaml`、`.env.example`、`.dockerignore`、`startapp-vnc.sh`、`vnc-auth-init.sh`、`updater-init.sh`、`updater-service.sh`、`updater-auth-agent.sh`。首次运行自动准备安装包和运行时文件。
 
 `.runtime/` 包含生成的 Compose 配置、构建包及实际版本记录，不要跨机器复用。生成的配置仅引用密码环境变量，不保存密码明文。`.cache/` 可删除，之后重新下载。`.env` 和应用存储属于敏感数据，应单独妥善备份。
 
@@ -151,6 +167,8 @@ COCKPIT_RUN_DOCKER_TESTS=1 python3 -m unittest discover -s tests -v
 ```
 
 amd64 的实际部署、登录认证、存储卷、目录挂载及重复部署后的数据保留已验证。ARM64 已核验官方安装包、基础镜像支持及架构选择逻辑，尚未进行实机部署验证。
+
+2026-11-03 在 amd64 开发容器通过官方“立即更新”按钮完成 v1.3.75 → v1.3.78：授权窗口自动置前、密码认证、官方安装与应用重启均已验证，界面和 dpkg 版本一致；容器普通重启后仍为 v1.3.78。认证代理绑定实际应用 PID，并在应用重启后重新注册。
 
 ## 上游项目
 

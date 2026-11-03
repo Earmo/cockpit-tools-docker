@@ -104,11 +104,20 @@ def ensure_env(root):
     if path.is_symlink():
         raise DeployError(".env 不得是符号链接。")
     if not path.exists():
-        password = secrets.token_hex(24)
         template = (root / ".env.example").read_text(encoding="utf-8")
-        if template.count("\nVNC_PASSWORD=\n") != 1:
-            raise DeployError(".env.example 缺少唯一的 VNC_PASSWORD 空值项。")
-        write_private(path, template.replace("\nVNC_PASSWORD=\n", "\nVNC_PASSWORD=" + dotenv_quote(password) + "\n"))
+        entries = list(re.finditer(r"(?m)^[ \t]*(?:export[ \t]+)?VNC_PASSWORD[ \t]*=[^\n]*", template))
+        if len(entries) > 1:
+            raise DeployError(".env.example 中 VNC_PASSWORD 重复，请只保留一项。")
+        if entries:
+            entry = entries[0]
+            value = entry.group().split("=", 1)[1].strip()
+            # Only recognize empty assignments here; Compose parses nonempty values.
+            if re.fullmatch(r'''(?:''|"")?[ \t]*(?:\#.*)?''', value):
+                assignment = "VNC_PASSWORD=" + dotenv_quote(secrets.token_hex(24))
+                template = template[:entry.start()] + assignment + template[entry.end():]
+        else:
+            template = template.rstrip("\n") + "\nVNC_PASSWORD=" + dotenv_quote(secrets.token_hex(24)) + "\n"
+        write_private(path, template)
         print("已创建 .env；登录密码保存在该文件中，不会输出到终端。", flush=True)
     path.chmod(0o600)
 

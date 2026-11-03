@@ -2,6 +2,9 @@
 !Dockerfile
 !startapp-vnc.sh
 !vnc-auth-init.sh
+!updater-init.sh
+!updater-service.sh
+!updater-auth-agent.sh
 !.runtime/
 .runtime/*
 !.runtime/package.deb
